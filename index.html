@@ -2,75 +2,113 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>日月潭好行大冒險</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
-        body { font-family: 'Microsoft JhengHei', sans-serif; background-color: #e0f2f1; overflow-x: hidden; }
-        .game-card { border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); background: white; }
-        .hidden { display: none; }
-        #bus { width: 100px; transition: transform 0.2s; }
-        #ohbear { width: 80px; position: absolute; bottom: 20px; }
-        .puzzle-piece { cursor: move; border: 1px solid #ccc; }
+        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; background-color: #f0fdfa; touch-action: manipulation; }
+        .hidden { display: none !important; }
+        /* 圖片裁切邏輯 */
+        .sprite-bus { width: 120px; height: 60px; background: url('https://i.postimg.cc/MKCWGn6z/busandbusstaion-png.png') no-repeat; background-size: 400px auto; background-position: -20px -20px; }
+        .sprite-station { width: 50px; height: 80px; background: url('https://i.postimg.cc/MKCWGn6z/busandbusstaion-png.png') no-repeat; background-size: 400px auto; background-position: -320px -10px; }
+        /* 拼圖樣式 */
+        .puzzle-slot { width: 80px; height: 80px; border: 2px dashed #ccc; background: #eee; }
+        .puzzle-piece { width: 80px; height: 80px; background-image: url('https://i.postimg.cc/VLd6vyXZ/zhu-shi-jue.jpg'); background-size: 160px 160px; cursor: pointer; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
 
-<div id="app" class="max-w-md mx-auto min-h-screen flex flex-col p-4">
+<div id="app" class="max-w-md mx-auto min-h-screen flex flex-col bg-white shadow-2xl relative">
+    
+    <!-- 測試模式標籤 -->
+    <div id="debug-tag" class="hidden absolute top-0 left-0 bg-red-500 text-white text-[10px] px-2 z-50">測試模式：GPS & 限制已關閉</div>
+
     <!-- 1. 登入畫面 -->
-    <div id="view-login" class="flex flex-col items-center justify-center flex-grow text-center">
-        <img src="https://i.postimg.cc/VLd6vyXZ/zhu-shi-jue.jpg" class="w-full rounded-lg mb-6 shadow-lg">
-        <h1 class="text-2xl font-bold text-teal-800 mb-4">日月潭好行大冒險</h1>
-        <p class="text-gray-600 mb-8">搭乘台灣好行，收集在地特色換好禮！</p>
-        <button id="btn-login" class="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-full font-bold text-lg shadow-md transform active:scale-95 transition">
-            使用 Google 帳號登入
+    <div id="view-login" class="flex flex-col items-center justify-center flex-grow p-6 text-center">
+        <img src="https://i.postimg.cc/VLd6vyXZ/zhu-shi-jue.jpg" class="w-full rounded-2xl mb-8 shadow-lg">
+        <h1 class="text-3xl font-black text-teal-800 mb-2">日月潭好行大冒險</h1>
+        <p class="text-teal-600 mb-10 font-medium">搭乘台灣好行，開啟驚喜旅程</p>
+        <button id="btn-login" class="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-2xl font-bold text-xl shadow-xl transition-all active:scale-95">
+            Google 帳號快速登入
         </button>
     </div>
 
-    <!-- 2. GPS 檢查畫面 (隱藏) -->
-    <div id="view-gps" class="hidden flex flex-col items-center justify-center flex-grow text-center">
-        <div class="p-6 bg-white rounded-2xl shadow-xl">
-            <span class="text-6xl mb-4 block">📍</span>
-            <h2 class="text-xl font-bold mb-2">確認您的位置</h2>
-            <p id="gps-status" class="text-gray-500 mb-4">正在確認您是否在日月潭範圍內...</p>
+    <!-- 2. GPS 檢查 -->
+    <div id="view-gps" class="hidden flex flex-col items-center justify-center flex-grow p-8 text-center">
+        <div class="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center mb-6 animate-bounce">
+            <span class="text-4xl">📍</span>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">確認您的位置</h2>
+        <p id="gps-status" class="text-gray-500 leading-relaxed">喔熊組長正在確認您是否在日月潭範圍內...</p>
+    </div>
+
+    <!-- 3. 第一關：公車前進 -->
+    <div id="view-game1" class="hidden flex flex-col p-6 flex-grow">
+        <div class="mb-4"><span class="bg-teal-500 text-white px-3 py-1 rounded-full text-sm">關卡 1/3</span></div>
+        <h2 class="text-2xl font-bold text-teal-900 mb-2">好行公車出發！</h2>
+        <p class="text-gray-600 mb-10">快速點擊螢幕讓公車抵達終點站</p>
+        <div class="relative w-full h-40 bg-slate-50 rounded-3xl border-b-8 border-slate-200 overflow-hidden flex items-end pb-4" id="game1-area">
+            <div id="bus-sprite" class="sprite-bus absolute left-0"></div>
+            <div class="sprite-station absolute right-4"></div>
         </div>
     </div>
 
-    <!-- 3. 遊戲關卡：公車前進 -->
-    <div id="view-game1" class="hidden flex flex-col items-center justify-center flex-grow text-center">
-        <h2 class="text-xl font-bold text-teal-700 mb-4">第一關：好行出發！</h2>
-        <p class="text-sm text-gray-500 mb-8">點擊螢幕讓公車抵達日月潭站</p>
-        <div class="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden border-b-4 border-teal-500">
-            <img id="bus" src="https://i.postimg.cc/MKCWGn6z/busandbusstaion-png.png" style="clip-path: inset(0 60% 0 0);" class="absolute left-0 bottom-4">
-            <img src="https://i.postimg.cc/MKCWGn6z/busandbusstaion-png.png" style="clip-path: inset(0 0 0 85%);" class="absolute right-2 bottom-4 w-12">
+    <!-- 4. 第二關：紅玉採茶 -->
+    <div id="view-game2" class="hidden flex flex-col p-6 flex-grow relative overflow-hidden">
+        <div class="mb-4"><span class="bg-teal-500 text-white px-3 py-1 rounded-full text-sm">關卡 2/3</span></div>
+        <h2 class="text-2xl font-bold text-teal-900 mb-2">喔熊採茶樂</h2>
+        <p class="text-gray-600 mb-4">左右滑動喔熊，接住掉落的紅玉茶葉 (<span id="tea-count">0</span>/5)</p>
+        <div id="game2-area" class="relative flex-grow bg-emerald-50 rounded-3xl border-2 border-emerald-100 overflow-hidden">
+            <img id="ohbear-player" src="https://i.postimg.cc/3N9vTgMS/obear.png" class="absolute bottom-4 left-1/2 -translate-x-1/2 w-20 h-auto transition-all">
         </div>
-        <div class="mt-8 text-xs text-gray-400">點擊畫面任何地方前進</div>
     </div>
 
-    <!-- 4. 兌獎憑證 (票夾) -->
-    <div id="view-reward" class="hidden flex flex-col items-center justify-center flex-grow">
-        <div class="w-full bg-white rounded-3xl p-6 border-4 border-dashed border-orange-300 relative overflow-hidden">
-            <div class="absolute -right-4 -top-4 bg-orange-500 text-white px-8 py-2 rotate-45">限量禮物</div>
-            <h2 class="text-2xl font-black text-teal-800 mb-2">好行兌換券</h2>
-            <p id="user-name" class="text-gray-600 font-bold mb-4">玩家：載入中...</p>
-            <div class="bg-teal-50 p-4 rounded-xl text-center mb-6">
-                <p class="text-sm text-teal-600 uppercase tracking-widest">目前核銷時間</p>
-                <p id="live-time" class="text-3xl font-mono font-bold text-teal-800">00:00:00</p>
+    <!-- 5. 第三關：主視覺拼圖 -->
+    <div id="view-game3" class="hidden flex flex-col p-6 flex-grow">
+        <div class="mb-4"><span class="bg-teal-500 text-white px-3 py-1 rounded-full text-sm">關卡 3/3</span></div>
+        <h2 class="text-2xl font-bold text-teal-900 mb-2">拼出美景</h2>
+        <p class="text-gray-600 mb-6">點擊拼圖塊，完成日月潭美景圖</p>
+        <div class="grid grid-cols-2 gap-2 mx-auto mb-8" id="puzzle-board">
+            <div class="puzzle-slot" data-id="0"></div>
+            <div class="puzzle-slot" data-id="1"></div>
+            <div class="puzzle-slot" data-id="2"></div>
+            <div class="puzzle-slot" data-id="3"></div>
+        </div>
+        <div class="flex justify-center gap-4" id="puzzle-pieces">
+            <!-- 拼圖塊由 JS 生成 -->
+        </div>
+    </div>
+
+    <!-- 6. 兌獎畫面 -->
+    <div id="view-reward" class="hidden flex flex-col p-6 flex-grow bg-orange-50">
+        <div class="bg-white rounded-3xl p-8 shadow-2xl border-t-8 border-orange-500 text-center">
+            <div class="text-5xl mb-4">🎁</div>
+            <h2 class="text-3xl font-black text-gray-800 mb-2">任務完成！</h2>
+            <p id="user-display" class="text-teal-600 font-bold mb-6">玩家：載入中...</p>
+            
+            <div class="bg-gray-50 rounded-2xl p-4 mb-8">
+                <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">工作人員核銷專用時間</p>
+                <p id="live-clock" class="text-4xl font-mono font-bold text-gray-800">00:00:00</p>
             </div>
-            <p class="text-xs text-red-500 mb-6 font-bold text-center">⚠️ 請將此畫面出示給工作人員核銷，請勿自行點擊按鈕</p>
-            <button id="btn-redeem" class="w-full bg-teal-600 text-white py-4 rounded-xl font-bold text-xl shadow-lg active:bg-teal-700">
-                工作人員點擊核銷
+
+            <button id="btn-redeem" class="w-full bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">
+                出示給工作人員核銷
             </button>
+            <p class="text-xs text-gray-400 mt-4">核銷後此券即失效</p>
         </div>
     </div>
 </div>
 
 <script type="module">
-    // --- 1. Firebase 初始化 ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+
+    // --- 測試模式設定 ---
+    const DEBUG_MODE = true; // 🚩 開發測試時請設為 true，正式上線改為 false
+
+    if(DEBUG_MODE) document.getElementById('debug-tag').classList.remove('hidden');
 
     const firebaseConfig = {
         apiKey: "AIzaSyBXfkVMgl3A4n4VyBpqpegOygBnxjxJjF4",
@@ -87,105 +125,142 @@
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
 
-    // --- 2. 變數與視圖控制 ---
-    const views = ['login', 'gps', 'game1', 'reward'];
-    function showView(viewName) {
-        views.forEach(v => document.getElementById(`view-${v}`).classList.add('hidden'));
-        document.getElementById(`view-${viewName}`).classList.remove('hidden');
+    function showView(id) {
+        document.querySelectorAll('#app > div').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`view-${id}`).classList.remove('hidden');
     }
 
-    // --- 3. 邏輯處理 ---
-
-    // 登入
+    // --- 登入邏輯 ---
     document.getElementById('btn-login').onclick = async () => {
         try {
             const result = await signInWithPopup(auth, provider);
-            checkUserStatus(result.user);
-        } catch (error) {
-            alert('登入失敗：' + error.message);
-        }
+            const user = result.user;
+            const docSnap = await getDoc(doc(db, "players", user.uid));
+            
+            if (!DEBUG_MODE && docSnap.exists() && docSnap.data().isRedeemed) {
+                alert('此帳號已兌換過獎品囉！');
+                return;
+            }
+
+            if (!DEBUG_MODE && docSnap.exists() && docSnap.data().gameFinished) {
+                initReward(user);
+            } else {
+                startGPS(user);
+            }
+        } catch (e) { alert('登入出錯: ' + e.message); }
     };
 
-    async function checkUserStatus(user) {
-        const docRef = doc(db, "players", user.uid);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists() && docSnap.data().isRedeemed) {
-            alert('您已經兌換過禮物囉！');
+    // --- GPS 邏輯 ---
+    function startGPS(user) {
+        showView('gps');
+        if (DEBUG_MODE) {
+            setTimeout(() => initGame1(), 1500);
             return;
         }
-
-        if (docSnap.exists() && docSnap.data().gameFinished) {
-            startRewardView(user);
-        } else {
-            showView('gps');
-            checkGPS(user);
-        }
-    }
-
-    // GPS 檢查 (日月潭中心座標)
-    function checkGPS(user) {
-        if (!navigator.geolocation) {
-            alert('您的瀏覽器不支援定位，暫時開放體驗');
-            showView('game1');
-            return;
-        }
-
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                // 這裡設一個較寬鬆的範圍測試 (或可直接跳過檢查方便測試)
-                showView('game1'); 
+                const dist = Math.sqrt(Math.pow(pos.coords.latitude - 23.8647, 2) + Math.pow(pos.coords.longitude - 120.9168, 2));
+                if (dist < 0.02) initGame1(); // 約 2km
+                else document.getElementById('gps-status').innerText = "喔熊發現你不在日月潭耶！請抵達現場後再玩吧。";
             },
-            (err) => {
-                alert('請開啟定位權限以進行遊戲！');
-                showView('game1'); // 測試期間先讓它過
-            }
+            () => { alert('請開啟定位以繼續'); initGame1(); } // 失敗暫時放行
         );
     }
 
-    // 第一關：公車遊戲
-    let busPos = 0;
-    document.getElementById('view-game1').onclick = () => {
-        busPos += 10;
-        document.getElementById('bus').style.left = busPos + 'px';
-        if (busPos > 250) {
-            finishGame();
-        }
-    };
-
-    async function finishGame() {
-        const user = auth.currentUser;
-        await setDoc(doc(db, "players", user.uid), {
-            name: user.displayName,
-            email: user.email,
-            gameFinished: true,
-            isRedeemed: false,
-            timestamp: new Date()
-        }, { merge: true });
-        startRewardView(user);
+    // --- 第一關：公車 ---
+    let busX = 0;
+    function initGame1() {
+        showView('game1');
+        const area = document.getElementById('view-game1');
+        const bus = document.getElementById('bus-sprite');
+        area.onclick = () => {
+            busX += 15;
+            bus.style.transform = `translateX(${busX}px)`;
+            if (busX > 200) { area.onclick = null; initGame2(); }
+        };
     }
 
-    function startRewardView(user) {
-        showView('reward');
-        document.getElementById('user-name').innerText = `玩家：${user.displayName}`;
-        setInterval(() => {
-            const now = new Date();
-            document.getElementById('live-time').innerText = now.toTimeString().split(' ')[0];
+    // --- 第二關：採茶 ---
+    let score = 0;
+    function initGame2() {
+        showView('game2');
+        const bear = document.getElementById('ohbear-player');
+        const area = document.getElementById('game2-area');
+        
+        // 滑動控制
+        area.ontouchmove = (e) => {
+            let x = e.touches[0].clientX - area.getBoundingClientRect().left;
+            bear.style.left = `${Math.max(40, Math.min(x, area.clientWidth - 40))}px`;
+        };
+
+        const interval = setInterval(() => {
+            const leaf = document.createElement('div');
+            leaf.innerText = "🍃";
+            leaf.className = "absolute text-2xl transition-all duration-2000";
+            leaf.style.left = Math.random() * 90 + "%";
+            leaf.style.top = "-40px";
+            area.appendChild(leaf);
+            
+            gsap.to(leaf, { top: "100%", duration: 2, onUpdate: () => {
+                const b = bear.getBoundingClientRect();
+                const l = leaf.getBoundingClientRect();
+                if (l.top > b.top && l.left > b.left && l.left < b.right) {
+                    leaf.remove(); score++;
+                    document.getElementById('tea-count').innerText = score;
+                    if (score >= 5) { clearInterval(interval); initGame3(); }
+                }
+            }, onComplete: () => leaf.remove() });
         }, 1000);
     }
 
-    // 核銷按鈕
-    document.getElementById('btn-redeem').onclick = async () => {
-        if (confirm('確定要核銷換獎品嗎？(此操作由工作人員執行)')) {
-            const user = auth.currentUser;
-            await setDoc(doc(db, "players", user.uid), { isRedeemed: true }, { merge: true });
-            alert('兌換成功！');
-            location.reload();
-        }
-    };
+    // --- 第三關：拼圖 ---
+    function initGame3() {
+        showView('game3');
+        const piecesArea = document.getElementById('puzzle-pieces');
+        const slots = document.querySelectorAll('.puzzle-slot');
+        let matched = 0;
 
+        [0, 1, 2, 3].sort(() => Math.random() - 0.5).forEach(id => {
+            const p = document.createElement('div');
+            p.className = "puzzle-piece";
+            p.style.backgroundPosition = `-${(id % 2) * 80}px -${Math.floor(id / 2) * 80}px`;
+            p.onclick = () => {
+                const target = slots[matched];
+                gsap.to(p, { x: target.offsetLeft - p.offsetLeft, y: target.offsetTop - p.offsetTop, duration: 0.5 });
+                target.style.border = "none";
+                target.appendChild(p);
+                matched++;
+                if (matched === 4) setTimeout(() => initReward(auth.currentUser), 1000);
+            };
+            piecesArea.appendChild(p);
+        });
+    }
+
+    // --- 兌獎畫面 ---
+    async function initReward(user) {
+        showView('reward');
+        document.getElementById('user-display').innerText = `玩家：${user.displayName}`;
+        
+        if (!DEBUG_MODE) {
+            await setDoc(doc(db, "players", user.uid), {
+                gameFinished: true,
+                isRedeemed: false,
+                name: user.displayName
+            }, { merge: true });
+        }
+
+        setInterval(() => {
+            document.getElementById('live-clock').innerText = new Date().toTimeString().split(' ')[0];
+        }, 1000);
+
+        document.getElementById('btn-redeem').onclick = async () => {
+            if (confirm('工作人員確認兌換？')) {
+                await setDoc(doc(db, "players", user.uid), { isRedeemed: true }, { merge: true });
+                alert('領取成功！');
+                location.reload();
+            }
+        };
+    }
 </script>
 </body>
 </html>
