@@ -9,11 +9,9 @@
     <style>
         body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; background-color: #f0fdfa; touch-action: manipulation; overflow: hidden; }
         .hidden { display: none !important; }
-        /* 第一關素材 */
         #bus-img { width: 100px; position: absolute; left: 0; bottom: 10px; z-index: 10; transition: left 0.1s linear; }
         #station-img { width: 60px; position: absolute; right: 10px; bottom: 10px; z-index: 5; }
-        /* 拼圖樣式修正 */
-        .puzzle-slot { width: 85px; height: 85px; border: 2px dashed #teal-200; background: #f1f5f9; position: relative; }
+        .puzzle-slot { width: 85px; height: 85px; border: 2px dashed #99f6e4; background: #f1f5f9; position: relative; }
         .puzzle-piece { width: 85px; height: 85px; background-image: url('https://i.postimg.cc/VLd6vyXZ/zhu-shi-jue.jpg'); background-size: 170px 170px; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer; position: relative; }
     </style>
 </head>
@@ -26,6 +24,7 @@
     <div id="view-login" class="flex flex-col items-center justify-center flex-grow p-6 text-center">
         <img src="https://i.postimg.cc/VLd6vyXZ/zhu-shi-jue.jpg" class="w-full rounded-2xl mb-8 shadow-lg">
         <h1 class="text-3xl font-black text-teal-800 mb-2">日月潭好行大冒險</h1>
+        <p class="text-teal-600 mb-10">探索邵族文化與美景</p>
         <button id="btn-login" class="w-full bg-teal-600 text-white py-4 rounded-2xl font-bold text-xl shadow-xl active:scale-95 transition-all">Google 快速登入</button>
     </div>
 
@@ -33,6 +32,7 @@
     <div id="view-gps" class="hidden flex flex-col items-center justify-center flex-grow p-8 text-center">
         <div class="w-20 h-20 bg-teal-100 rounded-full flex items-center justify-center mb-6 animate-bounce"><span class="text-4xl">📍</span></div>
         <h2 class="text-2xl font-bold mb-4">確認位置中...</h2>
+        <p class="text-gray-500">正在確認您是否在日月潭範圍內</p>
     </div>
 
     <!-- 3. 第一關：公車 -->
@@ -48,9 +48,9 @@
     <!-- 4. 第二關：採茶 -->
     <div id="view-game2" class="hidden flex flex-col p-6 flex-grow relative">
         <h2 class="text-2xl font-bold text-teal-900 mb-2">第二關：喔熊採茶</h2>
-        <p class="text-gray-600">左右滑動喔熊接茶葉 (<span id="tea-count">0</span>/5)</p>
+        <p class="text-gray-600">左右滑動或點擊來移動喔熊 (<span id="tea-count">0</span>/5)</p>
         <div id="game2-area" class="relative flex-grow bg-emerald-50 rounded-3xl mt-4 border-2 border-emerald-100 overflow-hidden">
-            <img id="ohbear-player" src="https://i.postimg.cc/3N9vTgMS/obear.png" class="absolute bottom-4 left-1/2 -translate-x-1/2 w-24 h-auto pointer-events-none">
+            <img id="ohbear-player" src="https://i.postimg.cc/3N9vTgMS/obear.png" class="absolute bottom-4 left-1/2 -translate-x-1/2 w-24 h-auto pointer-events-none transition-all duration-100">
         </div>
     </div>
 
@@ -82,9 +82,11 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-    const DEBUG_MODE = true; // 測試完記得改 false
+    // --- 核心配置 ---
+    const DEBUG_MODE = true; 
+
     const firebaseConfig = {
         apiKey: "AIzaSyBXfkVMgl3A4n4VyBpqpegOygBnxjxJjF4",
         authDomain: "sml-bus-game.firebaseapp.com",
@@ -100,39 +102,59 @@
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
 
+    if(!DEBUG_MODE) document.getElementById('debug-tag').classList.add('hidden');
+
     function showView(id) {
         document.querySelectorAll('#app > div').forEach(el => el.classList.add('hidden'));
         document.getElementById(`view-${id}`).classList.remove('hidden');
     }
 
-    // --- 登入 ---
-    document.getElementById('btn-login').onclick = async () => {
-        try {
-            const result = await signInWithPopup(auth, provider);
-            showView('game1'); initGame1();
-        } catch (e) { alert('登入失敗，請確認 Firebase 網域設定'); }
+    // --- 登入控制 (Redirect 模式) ---
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            const docSnap = await getDoc(doc(db, "players", user.uid));
+            if (!DEBUG_MODE && docSnap.exists() && docSnap.data().isRedeemed) {
+                alert('已兌換過禮物。');
+                return;
+            }
+            showView('game1');
+            initGame1();
+        }
+    });
+
+    getRedirectResult(auth).catch((e) => {
+        console.error("驗證錯誤:", e);
+        if(e.code === 'auth/unauthorized-domain') {
+            alert('網域授權錯誤。請確認 Firebase 後台已加入 lizbaibai.github.io');
+        }
+    });
+
+    document.getElementById('btn-login').onclick = () => {
+        signInWithRedirect(auth, provider);
     };
 
-    // --- 第一關：公車 (修正) ---
+    // --- 第一關：公車 ---
     let busLeft = 0;
     function initGame1() {
         const bus = document.getElementById('bus-img');
         const area = document.getElementById('view-game1');
         area.onclick = () => {
-            busLeft += 15;
+            busLeft += 20;
             bus.style.left = busLeft + 'px';
-            if (busLeft > 220) { area.onclick = null; initGame2(); }
+            if (busLeft > 230) {
+                area.onclick = null;
+                initGame2();
+            }
         };
     }
 
-    // --- 第二關：採茶 (修正互動) ---
+    // --- 第二關：採茶 ---
     let score = 0;
     function initGame2() {
         showView('game2');
         const bear = document.getElementById('ohbear-player');
         const area = document.getElementById('game2-area');
         
-        // 滑動或點擊皆可控制喔熊
         const moveBear = (clientX) => {
             let rect = area.getBoundingClientRect();
             let x = clientX - rect.left;
@@ -152,20 +174,23 @@
             leaf.style.top = "-40px";
             area.appendChild(leaf);
             
-            gsap.to(leaf, { top: "105%", duration: 2.5, ease: "none", onUpdate: () => {
+            gsap.to(leaf, { top: "105%", duration: 2.2, ease: "none", onUpdate: () => {
                 const b = bear.getBoundingClientRect();
                 const l = leaf.getBoundingClientRect();
-                // 加大碰撞偵測範圍
                 if (l.bottom > b.top && l.left > b.left - 20 && l.right < b.right + 20) {
                     leaf.remove(); score++;
                     document.getElementById('tea-count').innerText = score;
-                    if (score >= 5) { clearInterval(leafInterval); area.onmousemove = area.ontouchmove = null; initGame3(); }
+                    if (score >= 5) { 
+                        clearInterval(leafInterval); 
+                        area.onmousemove = area.ontouchmove = null; 
+                        initGame3(); 
+                    }
                 }
             }, onComplete: () => leaf.remove() });
-        }, 1200);
+        }, 1000);
     }
 
-    // --- 第三關：拼圖 (修正飛散問題) ---
+    // --- 第三關：拼圖 ---
     function initGame3() {
         showView('game3');
         const piecesArea = document.getElementById('puzzle-pieces');
@@ -179,28 +204,42 @@
             
             piece.onclick = () => {
                 const targetSlot = slots[matched];
-                // 修正座標邏輯：將拼圖移動到格子的中心
-                const rect = targetSlot.getBoundingClientRect();
-                const containerRect = piece.parentElement.getBoundingClientRect();
-                
                 targetSlot.appendChild(piece);
                 piece.style.position = "static"; 
                 piece.onclick = null;
                 matched++;
-                if (matched === 4) setTimeout(() => initReward(), 1000);
+                if (matched === 4) setTimeout(() => initReward(), 800);
             };
             piecesArea.appendChild(piece);
         });
     }
 
-    function initReward() {
+    // --- 兌獎畫面 ---
+    async function initReward() {
         showView('reward');
-        document.getElementById('user-display').innerText = `玩家：${auth.currentUser.displayName}`;
+        const user = auth.currentUser;
+        document.getElementById('user-display').innerText = `玩家：${user ? user.displayName : '訪客'}`;
+        
+        if (!DEBUG_MODE && user) {
+            await setDoc(doc(db, "players", user.uid), {
+                gameFinished: true,
+                isRedeemed: false,
+                name: user.displayName
+            }, { merge: true });
+        }
+
         setInterval(() => {
             document.getElementById('live-clock').innerText = new Date().toTimeString().split(' ')[0];
         }, 1000);
-        document.getElementById('btn-redeem').onclick = () => {
-            if(confirm('核銷換獎品？')) { alert('兌換成功！'); location.reload(); }
+
+        document.getElementById('btn-redeem').onclick = async () => {
+            if(confirm('確認核銷領獎？')) {
+                if(!DEBUG_MODE && user) {
+                    await setDoc(doc(db, "players", user.uid), { isRedeemed: true }, { merge: true });
+                }
+                alert('兌換成功！');
+                location.reload();
+            }
         };
     }
 </script>
